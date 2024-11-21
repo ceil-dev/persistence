@@ -42,6 +42,13 @@ import {microEnv} from '@ceil-dev/persistence';
 ### Example
 
 ```typescript
+import {
+  createPersistence,
+  createRuntimeLevel,
+  createFileSystemLevel,
+} from "@ceil-dev/persistence";
+import fs from "fs";
+
 // This example uses two persistence levels: default and file system
 const run = async () => {
   // Create a directory if it does not exist
