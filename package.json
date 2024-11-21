@@ -1,0 +1,27 @@
+{
+  "name": "@ceil-dev/persistence",
+  "version": "0.1.6",
+  "author": "Sergey Shkatula",
+  "description": "Library for organizing redundancy",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "dev": "npx tsc --watch",
+    "example": "node dist/example.js",
+    "lint": "npx eslint . --ext .ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github:ceil-dev/persistence"
+  },
+  "dependencies": {
+    "@types/node": "22.9.0",
+    "@typescript-eslint/eslint-plugin": "8.15.0",
+    "@typescript-eslint/parser": "8.15.0",
+    "eslint": "9.15.0",
+    "eslint-config-prettier": "9.1.0",
+    "prettier": "3.3.3",
+    "typescript": "5.6.3"
+  }
+}
