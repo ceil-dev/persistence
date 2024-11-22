@@ -1,6 +1,6 @@
 {
   "name": "@ceil-dev/persistence",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "author": "Sergey Shkatula",
   "description": "Library for organizing redundancy",
   "license": "MIT",
@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github:ceil-dev/persistence"
+    "url": "https://github.com/ceil-dev/persistence.git"
   },
   "dependencies": {
     "@types/node": "22.9.0",
