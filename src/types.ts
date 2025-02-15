@@ -1,17 +1,20 @@
 export type StorageEntry = { version?: number; value: unknown };
 
-export type PersistenceStorageGetPros = {
+export type PersistenceStorageGetProps = {
   key: string;
+  path?: Depth[];
   minVersion?: number | 'next' | 'any';
   forwarded?: boolean;
 };
-export type PersistenceStorageSetPros<T = unknown> = {
+export type PersistenceStorageSetProps<T = unknown> = {
   key: string;
+  path?: Depth[];
   value: T;
   version?: number;
 };
 export type PersistenceStorageNextProps = {
   key: string;
+  path?: Depth[];
   value: unknown;
   settings: NextSettings;
 };
@@ -19,14 +22,17 @@ export type PersistenceStorageDeletePros = { key: string; maxVersion?: number };
 
 export type PersistenceLevel = {
   get: (
-    props: PersistenceStorageGetPros
+    props: PersistenceStorageGetProps
   ) => StorageEntry | Promise<StorageEntry | undefined> | undefined;
   // TODO: consider returning boolean indicating success
-  set: (props: PersistenceStorageSetPros<StorageEntry>) => void | Promise<void>;
+  set: (
+    props: PersistenceStorageSetProps<StorageEntry>
+  ) => void | true | Promise<void | true>;
   delete: (props: PersistenceStorageDeletePros) => Promise<void> | void;
   clear: () => Promise<void> | void;
   keys?: string[];
   next?: NextSettings;
+  supportsPaths?: boolean;
   // destroy?
 };
 
@@ -42,20 +48,28 @@ export type PersistenceApiMethodProps = {
   next?: NextSettings;
 };
 
+export type Depth = string | number | DepthDescriptor;
+
+export type DepthDescriptor = {
+  key: string | number;
+  defaultValue?: unknown;
+  merge?: [string, unknown][];
+};
+
 export type PersistenceApi = {
   get: (
-    props: PersistenceStorageGetPros & PersistenceApiMethodProps
+    props: PersistenceStorageGetProps & PersistenceApiMethodProps
   ) => StorageEntry | Promise<StorageEntry | undefined> | undefined;
   set: (
-    props: PersistenceStorageSetPros & PersistenceApiMethodProps
-  ) => void | Promise<void>;
+    props: PersistenceStorageSetProps & PersistenceApiMethodProps
+  ) => void | true | Promise<void | true>;
   delete: (
     props: PersistenceStorageDeletePros & PersistenceApiMethodProps
   ) => void | Promise<void>;
   clear: (props?: PersistenceApiMethodProps) => void | Promise<void>;
   upgrade: (
     props: PersistenceStorageNextProps & PersistenceApiMethodProps
-  ) => boolean | Promise<boolean>;
+  ) => void | boolean | Promise<void | boolean>;
   addLevel: (props: {
     id: string;
     level: PersistenceLevel;
@@ -83,7 +97,7 @@ export type AwaitEntry = {
 };
 
 export type WebStorageLike = {
-  getItem: (key: string) => string | Promise<string> | null | undefined;
+  getItem: (key: string) => string | Promise<string | null> | null | undefined;
   setItem: (key: string, value: string) => void | Promise<void>;
   removeItem: (key: string) => void | Promise<void>;
   clear: () => void | Promise<void>;
@@ -112,7 +126,7 @@ export type FetchLike = (
 
 type _AbortSignal = {
   aborted: boolean;
-  onabort: ((e: Event) => unknown) | null;
+  onabort: (e: Event) => void;
   reason: undefined;
   throwIfAborted: () => void;
   addEventListener: <K extends keyof AbortSignalEventMap>(

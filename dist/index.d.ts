@@ -1,7 +1,7 @@
-import { CreatePersistenceProps, PersistenceApi, StorageEntry } from './types';
+import { CreatePersistenceProps, Depth, PersistenceApi, StorageEntry } from './types';
 export * from './types';
-export declare const getDeep: (data: unknown, path: string[]) => StorageEntry;
-export declare const setDeep: (data: unknown, path: string[], value: unknown) => void;
+export declare const getDeep: (data: unknown, path: Depth[]) => StorageEntry | undefined;
+export declare const setDeep: (data: unknown, path: Depth[], value: unknown) => void | true;
 export declare const createPersistence: (mainProps: CreatePersistenceProps) => PersistenceApi;
 export declare const createPersistenceSupplier: (props: CreatePersistenceProps) => () => PersistenceApi;
 export * from './levels/runtimeLevel';

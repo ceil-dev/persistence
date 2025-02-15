@@ -75,7 +75,31 @@ const run = async () => {
   console.log(`Last known value of "firstKey": ${testValue}`);
   // Setting a new value for the key
   await persistence.set({ key: "firstKey", value: testValue + 1 });
-  console.log(`Updated value of "firstKey": ${testValue + 1}`);
+  console.log(
+    `Updated value of "firstKey": ${(await persistence.get({ key: 'firstKey' }))?.value}`
+  );
+
+  // Setting test object
+  await persistence.set({
+    key: 'testObj',
+    value: { existingProp: 'hello' },
+  });
+
+  // Setting nested prop on test object
+  await persistence.set({
+    key: 'testObj',
+    path: [{ key: 'newProp', defaultValue: [] }, 0], // = testObj.newProp[0] - newProp will be set to [] if undefined | null
+    value: 'world',
+  });
+
+  console.log(
+    'testObj value:',
+    (
+      await persistence.get({
+        key: 'testObj',
+      })
+    )?.value
+  );
 };
 
 run().catch(console.error);

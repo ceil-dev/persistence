@@ -1,6 +1,7 @@
 import {
   AwaitEntry,
   CreatePersistenceProps,
+  Depth,
   Persistence,
   PersistenceApi,
   PersistenceStorageNextProps,
@@ -12,23 +13,46 @@ import { createRuntimeLevel } from './levels/runtimeLevel';
 
 export * from './types';
 
-export const getDeep = (data: unknown, path: string[]): StorageEntry => {
+export const getDeep = (
+  data: unknown,
+  path: Depth[]
+): StorageEntry | undefined => {
   let value = data;
-  for (const key of path) {
-    if (value === undefined || value === null) break;
-    value = value[key];
+  for (const depth of path) {
+    if (value === undefined || value === null) return;
+
+    if (typeof depth === 'object') {
+      value = value[depth.key] ??= Array.isArray(depth.defaultValue)
+        ? [...depth.defaultValue]
+        : !depth.defaultValue
+          ? depth.defaultValue
+          : typeof depth.defaultValue === 'object'
+            ? { ...depth.defaultValue }
+            : depth.defaultValue;
+      if (value ?? undefined !== undefined)
+        depth.merge?.forEach(([k, v]) => ((value as any)[k] = v));
+    } else {
+      value = value[depth];
+    }
   }
   return { value };
 };
 
 export const setDeep = (
   data: unknown,
-  path: string[],
+  path: Depth[],
   value: unknown
-): void => {
+): void | true => {
   const parentValue = getDeep(data, path.slice(0, -1));
-  if (parentValue.value === undefined || parentValue.value === null) return;
-  parentValue.value[path[path.length - 1]] = value;
+  if (parentValue?.value === undefined || parentValue?.value === null) return;
+  const lastKey = path[path.length - 1];
+  if (typeof lastKey === 'object') {
+    parentValue.value[lastKey.key] = value ?? lastKey.defaultValue;
+  } else {
+    parentValue.value[lastKey] = value;
+  }
+
+  return true;
 };
 
 export const createPersistence = (mainProps: CreatePersistenceProps) => {
@@ -81,15 +105,32 @@ export const createPersistence = (mainProps: CreatePersistenceProps) => {
       if (!entry) {
         // No data -> trying to get it from higher persistence level
         if (nextSettings) {
-          // Next level info indicates that there's a higher level -> can try getting value from there
-          entry = await api?.get({
-            key: props.key,
-            minLevel: nextSettings.level,
-            forwarded: true,
-          });
+          if (props.path?.length && levelApi.supportsPaths) {
+            entry = await api?.get({
+              key: props.key,
+              path: props.path,
+              minLevel: nextSettings.level,
+              forwarded: true,
+            });
+            if (entry) {
+              await levelApi.set({
+                key: props.key,
+                path: props.path,
+                value: entry,
+              });
+              entry = getDeep(entry.value, props.path);
+            }
+          } else {
+            // Next level info indicates that there's a higher level -> can try getting value from there
+            entry = await api?.get({
+              key: props.key,
+              minLevel: nextSettings.level,
+              forwarded: true,
+            });
 
-          // Settings lower level value so next time there'll be no need to access higher level          }
-          if (entry) await levelApi.set({ key: props.key, value: entry });
+            // Settings lower level value so next time there'll be no need to access higher level          }
+            if (entry) await levelApi.set({ key: props.key, value: entry });
+          }
         }
       }
 
@@ -124,10 +165,28 @@ export const createPersistence = (mainProps: CreatePersistenceProps) => {
         });
       }
 
-      await levelApi.set({
-        ...props,
-        value: { value: props.value },
-      });
+      if (props.path?.length && !levelApi.supportsPaths) {
+        const currentValue = await levelApi.get({
+          key: props.key,
+        });
+        /////////////////////// RETURNING ////////////////////
+        if (!currentValue?.value) {
+          return;
+        }
+        /////////////////////// RETURNING ////////////////////
+        if (!setDeep(currentValue?.value, props.path, props.value)) {
+          return;
+        }
+        await levelApi.set({
+          key: props.key,
+          value: currentValue,
+        });
+      } else {
+        await levelApi.set({
+          ...props,
+          value: { value: props.value },
+        });
+      }
 
       if (minLevel === 'default') {
         const awaitResolve = awaits[props.key]?.resolve;
@@ -138,6 +197,7 @@ export const createPersistence = (mainProps: CreatePersistenceProps) => {
       if (nextSettings && !nextSettings.exclude?.includes(props.key)) {
         await api.upgrade({
           key: props.key,
+          path: props.path,
           value: props.value,
           settings: nextSettings,
         });
@@ -186,40 +246,41 @@ export const createPersistence = (mainProps: CreatePersistenceProps) => {
       return;
     },
 
-    upgrade: ({ key, value, settings }: PersistenceStorageNextProps) => {
-      const { level: nextLevel, bufferMs } = settings;
+    upgrade: ({ key, path, value, settings }: PersistenceStorageNextProps) => {
+      const { level, bufferMs } = settings;
 
-      const level = persistence[nextLevel];
-      if (!level)
+      if (!persistence[level])
         throw new Error(
-          `Persistence: Tried to upgrade "${key}" to unknown level "${nextLevel}"`
+          `Persistence: Tried to upgrade "${key}" to unknown level "${level}"`
         );
 
-      let result: boolean | Promise<boolean> | undefined;
+      let result: void | boolean | Promise<void | boolean>;
 
       const up = () => {
         const setRes = api.set({
           key,
+          path,
           value,
-          minLevel: nextLevel,
+          minLevel: level,
         });
         return setRes;
       };
 
       if (bufferMs !== undefined) {
         result = new Promise((resolve) => {
-          const throttleKey = key + '>' + nextLevel;
+          const throttleKey = key + '>' + level;
           clearTimeout(throttles[throttleKey]);
           throttles[throttleKey] = setTimeout(() => {
             resolve(!!up());
           }, bufferMs);
         });
       } else {
-        result = !!up();
+        result = up();
       }
 
       return result;
     },
+
     addLevel: ({ id, level, from, bufferMs }) => {
       persistence[id] = level;
       if (!from) return;
