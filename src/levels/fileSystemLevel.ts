@@ -30,10 +30,7 @@ export const createFileSystemLevel = ({
       // TODO: validate
       return entry;
     } catch (e) {
-      console.warn(
-        `fsLevel: Getting "${key}" failed with:\n `,
-        e?.['message'] || e
-      );
+      // TODO: destiguish between simple "not set yet" and other
       return;
     }
   },

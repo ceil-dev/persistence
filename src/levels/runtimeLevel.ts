@@ -1,4 +1,10 @@
-import { PersistenceLevel, StorageEntry, NextSettings } from '../';
+import {
+  PersistenceLevel,
+  StorageEntry,
+  NextSettings,
+  getDeep,
+  setDeep,
+} from '../';
 
 export const createRuntimeLevel = (props?: {
   next?: NextSettings;
@@ -11,12 +17,20 @@ export const createRuntimeLevel = (props?: {
   const prefix = props?.prefix || '';
 
   return {
-    get: ({ key }) => {
-      return storage[prefix + key];
+    get: ({ key, path }) => {
+      const root = storage[prefix + key];
+
+      if (!path?.length) return root;
+
+      return getDeep(storage[prefix + key]?.value, path);
     },
-    set: ({ key, value }) => {
-      storage[prefix + key] = value;
-      return;
+    set: ({ key, path, value }) => {
+      if (!path?.length) {
+        storage[prefix + key] = value;
+        return true;
+      } else {
+        return setDeep(storage[prefix + key], ['value', ...path], value.value);
+      }
     },
     delete: ({ key }) => {
       delete storage[prefix + key];
@@ -30,5 +44,6 @@ export const createRuntimeLevel = (props?: {
       return;
     },
     next: next,
+    supportsPaths: true,
   };
 };

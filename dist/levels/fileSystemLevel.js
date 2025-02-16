@@ -18,7 +18,6 @@ const createFileSystemLevel = ({ fs, prefix = '', folderPath = './', next, }) =>
             return entry;
         }
         catch (e) {
-            console.warn(`fsLevel: Getting "${key}" failed with:\n `, (e === null || e === void 0 ? void 0 : e['message']) || e);
             return;
         }
     }),
