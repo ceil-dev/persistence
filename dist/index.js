@@ -92,7 +92,7 @@ const createPersistence = (mainProps) => {
     })()));
     const api = {
         get: (_a) => __awaiter(void 0, void 0, void 0, function* () {
-            var _b;
+            var _b, _c;
             var { minLevel = 'default' } = _a, props = __rest(_a, ["minLevel"]);
             const levelApi = persistence[minLevel];
             if (!levelApi)
@@ -107,9 +107,12 @@ const createPersistence = (mainProps) => {
                 return api.get({ minLevel: nextSettings.level, key: props.key });
             }
             let entry = yield levelApi.get(props);
+            if (entry && ((_b = props.path) === null || _b === void 0 ? void 0 : _b.length) && !levelApi.supportsPaths) {
+                entry = (0, exports.getDeep)(entry.value, props.path);
+            }
             if (!entry) {
                 if (nextSettings) {
-                    if (((_b = props.path) === null || _b === void 0 ? void 0 : _b.length) && levelApi.supportsPaths) {
+                    if (((_c = props.path) === null || _c === void 0 ? void 0 : _c.length) && levelApi.supportsPaths) {
                         entry = yield (api === null || api === void 0 ? void 0 : api.get({
                             key: props.key,
                             path: props.path,
