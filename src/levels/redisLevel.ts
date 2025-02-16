@@ -1,4 +1,4 @@
-import { PersistenceLevel } from '../index';
+import { NextSettings, PersistenceLevel } from '../index';
 
 type Redislient = {
   get: (
@@ -16,11 +16,13 @@ type Redislient = {
 type RedisLevelProps = {
   client: Redislient;
   prefix: string;
+  next?: NextSettings;
 };
 
 export const createRedisLevel = ({
   client,
   prefix = '',
+  next,
 }: RedisLevelProps): PersistenceLevel => ({
   get: async ({ key }) => {
     const strEntry = await client.get(prefix + key);
@@ -40,4 +42,5 @@ export const createRedisLevel = ({
   delete: ({ key }) => {
     return client.del(prefix + key);
   },
+  next,
 });

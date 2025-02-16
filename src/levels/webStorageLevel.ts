@@ -1,13 +1,15 @@
-import { PersistenceLevel, WebStorageLike } from '../index';
+import { NextSettings, PersistenceLevel, WebStorageLike } from '../index';
 
 type WebStorageLevelProps = {
   webStorage: WebStorageLike;
   prefix: string;
+  next?: NextSettings;
 };
 
 export const createWebStorageLevel = ({
   webStorage,
   prefix = '',
+  next,
 }: WebStorageLevelProps): PersistenceLevel => ({
   get: async ({ key }) => {
     const strEntry = await webStorage.getItem(prefix + key);
@@ -27,4 +29,5 @@ export const createWebStorageLevel = ({
   delete: ({ key }) => {
     return webStorage.removeItem(prefix + key);
   },
+  next,
 });

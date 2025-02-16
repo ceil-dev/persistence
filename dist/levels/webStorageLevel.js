@@ -10,7 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createWebStorageLevel = void 0;
-const createWebStorageLevel = ({ webStorage, prefix = '', }) => ({
+const createWebStorageLevel = ({ webStorage, prefix = '', next, }) => ({
     get: (_a) => __awaiter(void 0, [_a], void 0, function* ({ key }) {
         const strEntry = yield webStorage.getItem(prefix + key);
         if (typeof strEntry !== 'string') {
@@ -28,6 +28,7 @@ const createWebStorageLevel = ({ webStorage, prefix = '', }) => ({
     delete: ({ key }) => {
         return webStorage.removeItem(prefix + key);
     },
+    next,
 });
 exports.createWebStorageLevel = createWebStorageLevel;
 //# sourceMappingURL=webStorageLevel.js.map
