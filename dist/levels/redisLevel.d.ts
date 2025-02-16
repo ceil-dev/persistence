@@ -1,11 +1,11 @@
 import { NextSettings, PersistenceLevel } from '../index';
-type Redislient = {
+type RedisClient = {
     get: (key: string) => void | undefined | null | string | Promise<void | undefined | null | string>;
     set: (key: string, value: string) => any;
     del: (key: string) => any;
 };
 type RedisLevelProps = {
-    client: Redislient;
+    client: RedisClient;
     prefix: string;
     next?: NextSettings;
 };
