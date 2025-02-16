@@ -26,7 +26,7 @@ export type PersistenceStorageDeletePros = {
 };
 export type PersistenceLevel = {
     get: (props: PersistenceStorageGetProps) => StorageEntry | Promise<StorageEntry | undefined> | undefined;
-    set: (props: PersistenceStorageSetProps<StorageEntry>) => void | true | Promise<void | true>;
+    set: (props: PersistenceStorageSetProps<StorageEntry>) => void | boolean | Promise<void | boolean>;
     delete: (props: PersistenceStorageDeletePros) => Promise<void> | void;
     clear: () => Promise<void> | void;
     keys?: string[];

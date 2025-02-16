@@ -27,7 +27,7 @@ export type PersistenceLevel = {
   // TODO: consider returning boolean indicating success
   set: (
     props: PersistenceStorageSetProps<StorageEntry>
-  ) => void | true | Promise<void | true>;
+  ) => void | boolean | Promise<void | boolean>;
   delete: (props: PersistenceStorageDeletePros) => Promise<void> | void;
   clear: () => Promise<void> | void;
   keys?: string[];

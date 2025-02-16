@@ -101,6 +101,9 @@ export const createPersistence = (mainProps: CreatePersistenceProps) => {
       }
 
       let entry = await levelApi.get(props);
+      if (entry && props.path?.length && !levelApi.supportsPaths) {
+        entry = getDeep(entry.value, props.path);
+      }
 
       if (!entry) {
         // No data -> trying to get it from higher persistence level
@@ -307,4 +310,5 @@ export * from './levels/runtimeLevel';
 export * from './levels/webStorageLevel';
 export * from './levels/remoteStorageLevel';
 export * from './levels/fileSystemLevel';
+export * from './levels/redisLevel';
 export * from './types';
