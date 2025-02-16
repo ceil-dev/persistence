@@ -1,7 +1,7 @@
 import { PersistenceLevel, WebStorageLike } from '../index';
-type WebStorageLevelProps = Omit<Partial<PersistenceLevel>, 'get' | 'set' | 'delete' | 'clear'> & {
+type WebStorageLevelProps = {
     webStorage: WebStorageLike;
     prefix: string;
 };
-export declare const createWebStorageLevel: ({ webStorage, prefix, ...rest }: WebStorageLevelProps) => PersistenceLevel;
+export declare const createWebStorageLevel: ({ webStorage, prefix, }: WebStorageLevelProps) => PersistenceLevel;
 export {};

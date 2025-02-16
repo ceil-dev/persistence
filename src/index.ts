@@ -307,4 +307,5 @@ export * from './levels/runtimeLevel';
 export * from './levels/webStorageLevel';
 export * from './levels/remoteStorageLevel';
 export * from './levels/fileSystemLevel';
+export * from './levels/redisLevel';
 export * from './types';

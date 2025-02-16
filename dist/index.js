@@ -275,5 +275,6 @@ __exportStar(require("./levels/runtimeLevel"), exports);
 __exportStar(require("./levels/webStorageLevel"), exports);
 __exportStar(require("./levels/remoteStorageLevel"), exports);
 __exportStar(require("./levels/fileSystemLevel"), exports);
+__exportStar(require("./levels/redisLevel"), exports);
 __exportStar(require("./types"), exports);
 //# sourceMappingURL=index.js.map
