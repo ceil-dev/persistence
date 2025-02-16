@@ -1,6 +1,6 @@
 {
   "name": "@ceil-dev/persistence",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "author": "Sergey Shkatula",
   "description": "Library for organizing redundancy",
   "license": "MIT",
