@@ -9,10 +9,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createWebStorageLevel = void 0;
-const createWebStorageLevel = ({ webStorage, prefix = '', next, }) => ({
+exports.createRedisLevel = void 0;
+const createRedisLevel = ({ client, prefix = '', next, }) => ({
     get: (_a) => __awaiter(void 0, [_a], void 0, function* ({ key }) {
-        const strEntry = yield webStorage.getItem(prefix + key);
+        const strEntry = yield client.get(prefix + key);
         if (typeof strEntry !== 'string') {
             return;
         }
@@ -20,15 +20,14 @@ const createWebStorageLevel = ({ webStorage, prefix = '', next, }) => ({
         return entry;
     }),
     set: ({ key, value }) => {
-        return webStorage.setItem(prefix + key, JSON.stringify(value));
+        return client.set(prefix + key, JSON.stringify(value));
     },
     clear: () => {
-        return webStorage.clear();
     },
     delete: ({ key }) => {
-        return webStorage.removeItem(prefix + key);
+        return client.del(prefix + key);
     },
     next,
 });
-exports.createWebStorageLevel = createWebStorageLevel;
-//# sourceMappingURL=webStorageLevel.js.map
+exports.createRedisLevel = createRedisLevel;
+//# sourceMappingURL=redisLevel.js.map

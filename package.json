@@ -1,6 +1,6 @@
 {
   "name": "@ceil-dev/persistence",
-  "version": "0.1.8",
+  "version": "0.2.1",
   "author": "Sergey Shkatula",
   "description": "Library for organizing redundancy",
   "license": "MIT",
@@ -15,7 +15,7 @@
     "type": "git",
     "url": "https://github.com/ceil-dev/persistence.git"
   },
-  "dependencies": {
+  "devDependencies": {
     "@types/node": "22.9.0",
     "@typescript-eslint/eslint-plugin": "8.15.0",
     "@typescript-eslint/parser": "8.15.0",

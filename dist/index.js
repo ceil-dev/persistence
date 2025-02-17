@@ -38,20 +38,41 @@ exports.createPersistenceSupplier = exports.createPersistence = exports.setDeep 
 const runtimeLevel_1 = require("./levels/runtimeLevel");
 __exportStar(require("./types"), exports);
 const getDeep = (data, path) => {
+    var _a, _b;
+    var _c;
     let value = data;
-    for (const key of path) {
+    for (const depth of path) {
         if (value === undefined || value === null)
-            break;
-        value = value[key];
+            return;
+        if (typeof depth === 'object') {
+            value = (_a = value[_c = depth.key]) !== null && _a !== void 0 ? _a : (value[_c] = Array.isArray(depth.defaultValue)
+                ? [...depth.defaultValue]
+                : !depth.defaultValue
+                    ? depth.defaultValue
+                    : typeof depth.defaultValue === 'object'
+                        ? Object.assign({}, depth.defaultValue) : depth.defaultValue);
+            if (value !== null && value !== void 0 ? value : undefined !== undefined)
+                (_b = depth.merge) === null || _b === void 0 ? void 0 : _b.forEach(([k, v]) => (value[k] = v));
+        }
+        else {
+            value = value[depth];
+        }
     }
-    return { value };
+    return value;
 };
 exports.getDeep = getDeep;
 const setDeep = (data, path, value) => {
     const parentValue = (0, exports.getDeep)(data, path.slice(0, -1));
-    if (parentValue.value === undefined || parentValue.value === null)
+    if (parentValue === undefined || parentValue === null)
         return;
-    parentValue.value[path[path.length - 1]] = value;
+    const lastKey = path[path.length - 1];
+    if (typeof lastKey === 'object') {
+        parentValue[lastKey.key] = value !== null && value !== void 0 ? value : lastKey.defaultValue;
+    }
+    else {
+        parentValue[lastKey] = value;
+    }
+    return true;
 };
 exports.setDeep = setDeep;
 const createPersistence = (mainProps) => {
@@ -71,6 +92,7 @@ const createPersistence = (mainProps) => {
     })()));
     const api = {
         get: (_a) => __awaiter(void 0, void 0, void 0, function* () {
+            var _b, _c, _d;
             var { minLevel = 'default' } = _a, props = __rest(_a, ["minLevel"]);
             const levelApi = persistence[minLevel];
             if (!levelApi)
@@ -85,15 +107,42 @@ const createPersistence = (mainProps) => {
                 return api.get({ minLevel: nextSettings.level, key: props.key });
             }
             let entry = yield levelApi.get(props);
+            if (entry && ((_b = props.path) === null || _b === void 0 ? void 0 : _b.length) && !levelApi.supportsPaths) {
+                entry = { value: (0, exports.getDeep)(entry.value, props.path) };
+            }
             if (!entry) {
                 if (nextSettings) {
-                    entry = yield (api === null || api === void 0 ? void 0 : api.get({
-                        key: props.key,
-                        minLevel: nextSettings.level,
-                        forwarded: true,
-                    }));
-                    if (entry)
-                        yield levelApi.set({ key: props.key, value: entry });
+                    if (((_c = props.path) === null || _c === void 0 ? void 0 : _c.length) && levelApi.supportsPaths) {
+                        const nextSupportsPaths = (_d = persistence[nextSettings.level]) === null || _d === void 0 ? void 0 : _d.supportsPaths;
+                        entry = yield (api === null || api === void 0 ? void 0 : api.get({
+                            key: props.key,
+                            path: nextSupportsPaths ? props.path : undefined,
+                            minLevel: nextSettings.level,
+                            forwarded: true,
+                        }));
+                        if (entry) {
+                            if (!nextSupportsPaths)
+                                yield levelApi.set({
+                                    key: props.key,
+                                    value: entry,
+                                });
+                            else
+                                yield levelApi.set({
+                                    key: props.key,
+                                    path: props.path,
+                                    value: entry,
+                                });
+                        }
+                    }
+                    else {
+                        entry = yield (api === null || api === void 0 ? void 0 : api.get({
+                            key: props.key,
+                            minLevel: nextSettings.level,
+                            forwarded: true,
+                        }));
+                        if (entry)
+                            yield levelApi.set({ key: props.key, value: entry });
+                    }
                 }
             }
             if (!entry && props.key in mainProps.defaultData) {
@@ -106,7 +155,7 @@ const createPersistence = (mainProps) => {
             return entry;
         }),
         set: (_a) => __awaiter(void 0, void 0, void 0, function* () {
-            var _b, _c;
+            var _b, _c, _d;
             var { minLevel = 'default' } = _a, props = __rest(_a, ["minLevel"]);
             const levelApi = persistence[minLevel];
             if (!levelApi)
@@ -121,15 +170,33 @@ const createPersistence = (mainProps) => {
                     value: props.value,
                 });
             }
-            yield levelApi.set(Object.assign(Object.assign({}, props), { value: { value: props.value } }));
+            if (((_b = props.path) === null || _b === void 0 ? void 0 : _b.length) && !levelApi.supportsPaths) {
+                const currentValue = yield levelApi.get({
+                    key: props.key,
+                });
+                if (!(currentValue === null || currentValue === void 0 ? void 0 : currentValue.value)) {
+                    return;
+                }
+                if (!(0, exports.setDeep)(currentValue === null || currentValue === void 0 ? void 0 : currentValue.value, props.path, props.value)) {
+                    return;
+                }
+                yield levelApi.set({
+                    key: props.key,
+                    value: currentValue,
+                });
+            }
+            else {
+                yield levelApi.set(Object.assign(Object.assign({}, props), { value: { value: props.value } }));
+            }
             if (minLevel === 'default') {
-                const awaitResolve = (_b = awaits[props.key]) === null || _b === void 0 ? void 0 : _b.resolve;
+                const awaitResolve = (_c = awaits[props.key]) === null || _c === void 0 ? void 0 : _c.resolve;
                 delete awaits[props.key];
                 awaitResolve === null || awaitResolve === void 0 ? void 0 : awaitResolve({ value: props.value });
             }
-            if (nextSettings && !((_c = nextSettings.exclude) === null || _c === void 0 ? void 0 : _c.includes(props.key))) {
+            if (nextSettings && !((_d = nextSettings.exclude) === null || _d === void 0 ? void 0 : _d.includes(props.key))) {
                 yield api.upgrade({
                     key: props.key,
+                    path: props.path,
                     value: props.value,
                     settings: nextSettings,
                 });
@@ -165,23 +232,23 @@ const createPersistence = (mainProps) => {
             }
             return;
         }),
-        upgrade: ({ key, value, settings }) => {
-            const { level: nextLevel, bufferMs } = settings;
-            const level = persistence[nextLevel];
-            if (!level)
-                throw new Error(`Persistence: Tried to upgrade "${key}" to unknown level "${nextLevel}"`);
+        upgrade: ({ key, path, value, settings }) => {
+            const { level, bufferMs } = settings;
+            if (!persistence[level])
+                throw new Error(`Persistence: Tried to upgrade "${key}" to unknown level "${level}"`);
             let result;
             const up = () => {
                 const setRes = api.set({
                     key,
+                    path,
                     value,
-                    minLevel: nextLevel,
+                    minLevel: level,
                 });
                 return setRes;
             };
             if (bufferMs !== undefined) {
                 result = new Promise((resolve) => {
-                    const throttleKey = key + '>' + nextLevel;
+                    const throttleKey = key + '>' + level;
                     clearTimeout(throttles[throttleKey]);
                     throttles[throttleKey] = setTimeout(() => {
                         resolve(!!up());
@@ -189,7 +256,7 @@ const createPersistence = (mainProps) => {
                 });
             }
             else {
-                result = !!up();
+                result = up();
             }
             return result;
         },
@@ -217,5 +284,6 @@ __exportStar(require("./levels/runtimeLevel"), exports);
 __exportStar(require("./levels/webStorageLevel"), exports);
 __exportStar(require("./levels/remoteStorageLevel"), exports);
 __exportStar(require("./levels/fileSystemLevel"), exports);
+__exportStar(require("./levels/redisLevel"), exports);
 __exportStar(require("./types"), exports);
 //# sourceMappingURL=index.js.map

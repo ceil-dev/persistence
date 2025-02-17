@@ -15,7 +15,7 @@ if (typeof window === 'undefined') {
     fs = require('fs');
 }
 const run = () => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b, _c;
     fs.mkdirSync('./tmp/', { recursive: true });
     const persistence = (0, index_1.createPersistence)({
         defaultData: {
@@ -33,7 +33,19 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
     }
     console.log(`Last known value of "firstKey": ${testValue}`);
     yield persistence.set({ key: 'firstKey', value: testValue + 1 });
-    console.log(`Updated value of "firstKey": ${testValue + 1}`);
+    console.log(`Updated value of "firstKey": ${(_b = (yield persistence.get({ key: 'firstKey' }))) === null || _b === void 0 ? void 0 : _b.value}`);
+    yield persistence.set({
+        key: 'testObj',
+        value: { existingProp: 'hello' },
+    });
+    yield persistence.set({
+        key: 'testObj',
+        path: [{ key: 'newProp', defaultValue: [] }, 0],
+        value: 'world',
+    });
+    console.log('testObj value:', (_c = (yield persistence.get({
+        key: 'testObj',
+    }))) === null || _c === void 0 ? void 0 : _c.value);
 });
 run().catch(console.error);
 //# sourceMappingURL=example.js.map
