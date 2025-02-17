@@ -10,9 +10,9 @@ const createRuntimeLevel = (props) => {
         get: ({ key, path }) => {
             var _a;
             const root = storage[prefix + key];
-            if (!(path === null || path === void 0 ? void 0 : path.length))
+            if (!(prefix + key in storage) || !(path === null || path === void 0 ? void 0 : path.length))
                 return root;
-            return (0, __1.getDeep)((_a = storage[prefix + key]) === null || _a === void 0 ? void 0 : _a.value, path);
+            return { value: (0, __1.getDeep)((_a = storage[prefix + key]) === null || _a === void 0 ? void 0 : _a.value, path) };
         },
         set: ({ key, path, value }) => {
             if (!(path === null || path === void 0 ? void 0 : path.length)) {

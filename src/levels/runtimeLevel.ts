@@ -20,9 +20,9 @@ export const createRuntimeLevel = (props?: {
     get: ({ key, path }) => {
       const root = storage[prefix + key];
 
-      if (!path?.length) return root;
+      if (!(prefix + key in storage) || !path?.length) return root;
 
-      return getDeep(storage[prefix + key]?.value, path);
+      return { value: getDeep(storage[prefix + key]?.value, path) };
     },
     set: ({ key, path, value }) => {
       if (!path?.length) {

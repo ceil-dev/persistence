@@ -13,10 +13,7 @@ import { createRuntimeLevel } from './levels/runtimeLevel';
 
 export * from './types';
 
-export const getDeep = (
-  data: unknown,
-  path: Depth[]
-): StorageEntry | undefined => {
+export const getDeep = (data: unknown, path: Depth[]): unknown | undefined => {
   let value = data;
   for (const depth of path) {
     if (value === undefined || value === null) return;
@@ -35,7 +32,7 @@ export const getDeep = (
       value = value[depth];
     }
   }
-  return { value };
+  return value;
 };
 
 export const setDeep = (
@@ -44,12 +41,12 @@ export const setDeep = (
   value: unknown
 ): void | true => {
   const parentValue = getDeep(data, path.slice(0, -1));
-  if (parentValue?.value === undefined || parentValue?.value === null) return;
+  if (parentValue === undefined || parentValue === null) return;
   const lastKey = path[path.length - 1];
   if (typeof lastKey === 'object') {
-    parentValue.value[lastKey.key] = value ?? lastKey.defaultValue;
+    parentValue[lastKey.key] = value ?? lastKey.defaultValue;
   } else {
-    parentValue.value[lastKey] = value;
+    parentValue[lastKey] = value;
   }
 
   return true;
@@ -102,26 +99,37 @@ export const createPersistence = (mainProps: CreatePersistenceProps) => {
 
       let entry = await levelApi.get(props);
       if (entry && props.path?.length && !levelApi.supportsPaths) {
-        entry = getDeep(entry.value, props.path);
+        entry = { value: getDeep(entry.value, props.path) };
       }
 
       if (!entry) {
         // No data -> trying to get it from higher persistence level
         if (nextSettings) {
           if (props.path?.length && levelApi.supportsPaths) {
+            const nextSupportsPaths =
+              persistence[nextSettings.level]?.supportsPaths;
+
             entry = await api?.get({
               key: props.key,
-              path: props.path,
+              path: nextSupportsPaths ? props.path : undefined,
               minLevel: nextSettings.level,
               forwarded: true,
             });
+
             if (entry) {
-              await levelApi.set({
-                key: props.key,
-                path: props.path,
-                value: entry,
-              });
-              entry = getDeep(entry.value, props.path);
+              if (!nextSupportsPaths)
+                // setting main value
+                await levelApi.set({
+                  key: props.key,
+                  value: entry,
+                });
+              // setting nested value
+              else
+                await levelApi.set({
+                  key: props.key,
+                  path: props.path,
+                  value: entry,
+                });
             }
           } else {
             // Next level info indicates that there's a higher level -> can try getting value from there

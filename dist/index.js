@@ -58,19 +58,19 @@ const getDeep = (data, path) => {
             value = value[depth];
         }
     }
-    return { value };
+    return value;
 };
 exports.getDeep = getDeep;
 const setDeep = (data, path, value) => {
     const parentValue = (0, exports.getDeep)(data, path.slice(0, -1));
-    if ((parentValue === null || parentValue === void 0 ? void 0 : parentValue.value) === undefined || (parentValue === null || parentValue === void 0 ? void 0 : parentValue.value) === null)
+    if (parentValue === undefined || parentValue === null)
         return;
     const lastKey = path[path.length - 1];
     if (typeof lastKey === 'object') {
-        parentValue.value[lastKey.key] = value !== null && value !== void 0 ? value : lastKey.defaultValue;
+        parentValue[lastKey.key] = value !== null && value !== void 0 ? value : lastKey.defaultValue;
     }
     else {
-        parentValue.value[lastKey] = value;
+        parentValue[lastKey] = value;
     }
     return true;
 };
@@ -92,7 +92,7 @@ const createPersistence = (mainProps) => {
     })()));
     const api = {
         get: (_a) => __awaiter(void 0, void 0, void 0, function* () {
-            var _b, _c;
+            var _b, _c, _d;
             var { minLevel = 'default' } = _a, props = __rest(_a, ["minLevel"]);
             const levelApi = persistence[minLevel];
             if (!levelApi)
@@ -108,24 +108,30 @@ const createPersistence = (mainProps) => {
             }
             let entry = yield levelApi.get(props);
             if (entry && ((_b = props.path) === null || _b === void 0 ? void 0 : _b.length) && !levelApi.supportsPaths) {
-                entry = (0, exports.getDeep)(entry.value, props.path);
+                entry = { value: (0, exports.getDeep)(entry.value, props.path) };
             }
             if (!entry) {
                 if (nextSettings) {
                     if (((_c = props.path) === null || _c === void 0 ? void 0 : _c.length) && levelApi.supportsPaths) {
+                        const nextSupportsPaths = (_d = persistence[nextSettings.level]) === null || _d === void 0 ? void 0 : _d.supportsPaths;
                         entry = yield (api === null || api === void 0 ? void 0 : api.get({
                             key: props.key,
-                            path: props.path,
+                            path: nextSupportsPaths ? props.path : undefined,
                             minLevel: nextSettings.level,
                             forwarded: true,
                         }));
                         if (entry) {
-                            yield levelApi.set({
-                                key: props.key,
-                                path: props.path,
-                                value: entry,
-                            });
-                            entry = (0, exports.getDeep)(entry.value, props.path);
+                            if (!nextSupportsPaths)
+                                yield levelApi.set({
+                                    key: props.key,
+                                    value: entry,
+                                });
+                            else
+                                yield levelApi.set({
+                                    key: props.key,
+                                    path: props.path,
+                                    value: entry,
+                                });
                         }
                     }
                     else {
