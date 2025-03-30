@@ -105,6 +105,8 @@ export const createPersistence = (mainProps: CreatePersistenceProps) => {
       if (!entry) {
         // No data -> trying to get it from higher persistence level
         if (nextSettings) {
+          // Next level info indicates that there's a higher level -> can try getting value from there
+
           if (props.path?.length && levelApi.supportsPaths) {
             const nextSupportsPaths =
               persistence[nextSettings.level]?.supportsPaths;
@@ -117,29 +119,30 @@ export const createPersistence = (mainProps: CreatePersistenceProps) => {
             });
 
             if (entry) {
-              if (!nextSupportsPaths)
+              if (!nextSupportsPaths) {
                 // setting main value
                 await levelApi.set({
                   key: props.key,
                   value: entry,
                 });
-              // setting nested value
-              else
+                entry = { value: getDeep(entry.value, props.path) };
+              } else {
+                // setting nested value
                 await levelApi.set({
                   key: props.key,
                   path: props.path,
                   value: entry,
                 });
+              }
             }
           } else {
-            // Next level info indicates that there's a higher level -> can try getting value from there
             entry = await api?.get({
               key: props.key,
               minLevel: nextSettings.level,
               forwarded: true,
             });
 
-            // Settings lower level value so next time there'll be no need to access higher level          }
+            // Settings lower level value so next time there'll be no need to access higher level
             if (entry) await levelApi.set({ key: props.key, value: entry });
           }
         }

@@ -121,17 +121,20 @@ const createPersistence = (mainProps) => {
                             forwarded: true,
                         }));
                         if (entry) {
-                            if (!nextSupportsPaths)
+                            if (!nextSupportsPaths) {
                                 yield levelApi.set({
                                     key: props.key,
                                     value: entry,
                                 });
-                            else
+                                entry = { value: (0, exports.getDeep)(entry.value, props.path) };
+                            }
+                            else {
                                 yield levelApi.set({
                                     key: props.key,
                                     path: props.path,
                                     value: entry,
                                 });
+                            }
                         }
                     }
                     else {
