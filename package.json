@@ -1,8 +1,8 @@
 {
   "name": "@ceil-dev/persistence",
-  "version": "0.2.1",
+  "version": "1.0.0",
   "author": "Sergey Shkatula",
-  "description": "Library for organizing redundancy",
+  "description": "Library for organizing data redundancy",
   "license": "MIT",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
