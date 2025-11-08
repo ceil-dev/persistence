@@ -4,6 +4,7 @@
     "target": "ES2016",
     "module": "CommonJS",
     "moduleResolution": "node",
+    "strictNullChecks": true,
     "noImplicitAny": false,
     "removeComments": true,
     "preserveConstEnums": true,

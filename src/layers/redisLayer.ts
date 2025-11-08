@@ -1,6 +1,6 @@
-import { NextSettings, PersistenceLevel } from '../index';
+import { PersistenceLayerApi } from '../index';
 
-type RedisClient = {
+type RedisClientLike = {
   get: (
     key: string
   ) =>
@@ -13,17 +13,15 @@ type RedisClient = {
   del: (key: string) => any;
 };
 
-type RedisLevelProps = {
-  client: RedisClient;
+type RedisLayerProps = {
+  client: RedisClientLike;
   prefix: string;
-  next?: NextSettings;
 };
 
-export const createRedisLevel = ({
+export const createRedisLayer = ({
   client,
   prefix = '',
-  next,
-}: RedisLevelProps): PersistenceLevel => ({
+}: RedisLayerProps): PersistenceLayerApi => ({
   get: async ({ key }) => {
     const strEntry = await client.get(prefix + key);
     if (typeof strEntry !== 'string') {
@@ -34,13 +32,15 @@ export const createRedisLevel = ({
     return entry;
   },
   set: ({ key, value }) => {
-    return client.set(prefix + key, JSON.stringify(value));
+    client.set(prefix + key, JSON.stringify(value));
+    return true; // TODO: check success of async operations
   },
   clear: () => {
-    // return kv.clear();
+    console.warn('fsLevel.clear: Not implemented yet...');
+    return false;
   },
   delete: ({ key }) => {
-    return client.del(prefix + key);
+    client.del(prefix + key);
+    return true; // TODO: check success of async operations
   },
-  next,
 });

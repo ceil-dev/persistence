@@ -5,8 +5,6 @@ export type StorageEntry = {
 export type PersistenceStorageGetProps = {
     key: string;
     path?: Depth[];
-    minVersion?: number | 'next' | 'any';
-    forwarded?: boolean;
 };
 export type PersistenceStorageSetProps<T = unknown> = {
     key: string;
@@ -14,33 +12,30 @@ export type PersistenceStorageSetProps<T = unknown> = {
     value: T;
     version?: number;
 };
-export type PersistenceStorageNextProps = {
+export type PersistenceStorageUpgradeProps = {
     key: string;
     path?: Depth[];
-    value: unknown;
-    settings: NextSettings;
+    from?: string;
+    to: string;
 };
 export type PersistenceStorageDeletePros = {
     key: string;
-    maxVersion?: number;
+    path?: string[];
 };
-export type PersistenceLevel = {
-    get: (props: PersistenceStorageGetProps) => StorageEntry | Promise<StorageEntry | undefined> | undefined;
-    set: (props: PersistenceStorageSetProps<StorageEntry>) => void | boolean | Promise<void | boolean>;
-    delete: (props: PersistenceStorageDeletePros) => Promise<void> | void;
-    clear: () => Promise<void> | void;
-    keys?: string[];
-    next?: NextSettings;
+export type GetReturn = StorageEntry | Promise<StorageEntry | undefined> | undefined;
+export type PersistenceLayerApi = {
+    get: (props: PersistenceStorageGetProps) => GetReturn;
+    set: (props: PersistenceStorageSetProps<StorageEntry>) => boolean | Promise<boolean>;
+    delete: (props: PersistenceStorageDeletePros) => Promise<boolean> | boolean;
+    clear: () => Promise<boolean> | boolean;
     supportsPaths?: boolean;
 };
-export type NextSettings = {
-    bufferMs?: number;
-    level: string;
-    exclude?: string[];
+export type PersistenceLayer = {
+    id?: string;
+    api: PersistenceLayerApi;
 };
 export type PersistenceApiMethodProps = {
-    minLevel?: 'default' | string;
-    next?: NextSettings;
+    startLayerId?: string;
 };
 export type Depth = string | number | DepthDescriptor;
 export type DepthDescriptor = {
@@ -49,25 +44,21 @@ export type DepthDescriptor = {
     merge?: [string, unknown][];
 };
 export type PersistenceApi = {
-    get: (props: PersistenceStorageGetProps & PersistenceApiMethodProps) => StorageEntry | Promise<StorageEntry | undefined> | undefined;
-    set: (props: PersistenceStorageSetProps & PersistenceApiMethodProps) => void | true | Promise<void | true>;
-    delete: (props: PersistenceStorageDeletePros & PersistenceApiMethodProps) => void | Promise<void>;
-    clear: (props?: PersistenceApiMethodProps) => void | Promise<void>;
-    upgrade: (props: PersistenceStorageNextProps & PersistenceApiMethodProps) => void | boolean | Promise<void | boolean>;
-    addLevel: (props: {
+    get: (props: PersistenceStorageGetProps & PersistenceApiMethodProps) => GetReturn;
+    set: (props: PersistenceStorageSetProps & PersistenceApiMethodProps) => boolean | Promise<boolean>;
+    delete: (props: PersistenceStorageDeletePros & PersistenceApiMethodProps) => boolean | Promise<boolean>;
+    clear: (props: PersistenceApiMethodProps & PersistenceApiMethodProps) => boolean | Promise<boolean>;
+    upgrade: (props: PersistenceStorageUpgradeProps & PersistenceApiMethodProps) => boolean | Promise<boolean>;
+    addLayer: (props: {
         id: string;
-        level: PersistenceLevel;
-        from?: string;
-        bufferMs?: number;
+        layer: PersistenceLayerApi;
+        after?: string;
     }) => void;
 };
-export type Persistence = {
-    default: PersistenceLevel;
-} & Record<string, PersistenceLevel | undefined>;
 export type CreatePersistenceProps = {
     id: string;
     defaultData: Record<string, unknown>;
-    levels?: Record<'default' | string, PersistenceLevel>;
+    layers: [PersistenceLayer, ...rest: PersistenceLayer[]];
 };
 export type StorageAwaitResolve = (value: StorageEntry) => void;
 export type AwaitEntry = {

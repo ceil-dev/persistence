@@ -2,14 +2,14 @@ import {
   AwaitEntry,
   CreatePersistenceProps,
   Depth,
-  Persistence,
+  GetReturn,
   PersistenceApi,
-  PersistenceStorageNextProps,
   StorageAwaitResolve,
   StorageEntry,
 } from './types';
 
-import { createRuntimeLevel } from './levels/runtimeLevel';
+import { createRuntimeLayer } from './layers/runtimeLayer';
+import path = require('path');
 
 export * from './types';
 
@@ -26,8 +26,9 @@ export const getDeep = (data: unknown, path: Depth[]): unknown | undefined => {
           : typeof depth.defaultValue === 'object'
             ? { ...depth.defaultValue }
             : depth.defaultValue;
-      if (value ?? undefined !== undefined)
-        depth.merge?.forEach(([k, v]) => ((value as any)[k] = v));
+      if ((value ?? undefined) !== undefined) {
+        depth.merge?.forEach(([k, v]) => ((value as any)[k] = v)); // will try to set any property on any value (for instance, will work with someArray.length)
+      }
     } else {
       value = value[depth];
     }
@@ -39,9 +40,10 @@ export const setDeep = (
   data: unknown,
   path: Depth[],
   value: unknown
-): void | true => {
+): boolean => {
+  // TODO: Make sure that it works with depth descriptors
   const parentValue = getDeep(data, path.slice(0, -1));
-  if (parentValue === undefined || parentValue === null) return;
+  if (parentValue === undefined || parentValue === null) return false;
   const lastKey = path[path.length - 1];
   if (typeof lastKey === 'object') {
     parentValue[lastKey.key] = value ?? lastKey.defaultValue;
@@ -52,15 +54,19 @@ export const setDeep = (
   return true;
 };
 
+const maybePromise = <TValue, TReturn>(
+  value: undefined | TValue | Promise<TValue | undefined>,
+  forward: (value?: TValue) => TReturn | Promise<TReturn>
+) => {
+  return value instanceof Promise ? value.then(forward) : forward(value);
+};
+
 export const createPersistence = (mainProps: CreatePersistenceProps) => {
-  const persistence: Persistence = {
-    ...mainProps.levels,
-    default: mainProps.levels?.default || createRuntimeLevel(),
-  };
+  let idIndex = 0;
+  const genId = () => 'id' + idIndex++;
+  const layers = mainProps.layers.map((l) => ({ id: genId(), ...l }));
 
   const awaits: Record<string, AwaitEntry> = {};
-
-  const throttles: Record<string, NodeJS.Timeout> = {};
 
   const getAwaiter = (key: string) =>
     (awaits[key] ||= (() => {
@@ -77,234 +83,188 @@ export const createPersistence = (mainProps: CreatePersistenceProps) => {
     })());
 
   const api: PersistenceApi = {
-    get: async ({ minLevel = 'default', ...props }) => {
-      const levelApi = persistence[minLevel];
+    get: ({ startLayerId, path, key }) => {
+      const startLayerIndex = startLayerId
+        ? layers.findIndex((l) => l.id === startLayerId)
+        : 0;
 
-      if (!levelApi)
-        throw new Error(
-          `Persistence: get called with unknown minLevel "${minLevel}"`
-        );
+      const currentLayer = layers[startLayerIndex];
+      const nextLayer = layers[startLayerIndex + 1];
 
-      if (props.minVersion === 'next') {
-        return getAwaiter(props.key).promise;
-      }
+      if (!currentLayer)
+        throw new Error(`Could not find layer with "${startLayerId}" id`);
 
-      const nextSettings = props.next || levelApi.next;
+      const isExpectedCurrentValueDeep =
+        !!path?.length && !!currentLayer.api.supportsPaths;
 
-      if (levelApi.keys && !levelApi.keys.includes(props.key)) {
-        if (!nextSettings?.level) return;
+      const value = currentLayer.api.get(
+        isExpectedCurrentValueDeep ? { path, key } : { key }
+      );
 
-        return api.get({ minLevel: nextSettings.level, key: props.key });
-      }
+      return maybePromise(value, (getResult?: StorageEntry): GetReturn => {
+        if (!getResult) {
+          if (!nextLayer) return;
 
-      let entry = await levelApi.get(props);
-      if (entry && props.path?.length && !levelApi.supportsPaths) {
-        entry = { value: getDeep(entry.value, props.path) };
-      }
+          const isNextValueDeep =
+            !!path?.length &&
+            !!currentLayer.api.supportsPaths &&
+            !!nextLayer.api.supportsPaths;
 
-      if (!entry) {
-        // No data -> trying to get it from higher persistence level
-        if (nextSettings) {
-          // Next level info indicates that there's a higher level -> can try getting value from there
+          const nextLayerValue = api.get({
+            startLayerId: nextLayer.id,
+            path: isNextValueDeep ? path : undefined,
+            key,
+          });
 
-          if (props.path?.length && levelApi.supportsPaths) {
-            const nextSupportsPaths =
-              persistence[nextSettings.level]?.supportsPaths;
+          return maybePromise(
+            nextLayerValue,
+            (nextGetResult?: StorageEntry): GetReturn => {
+              if (!nextGetResult) return;
 
-            entry = await api?.get({
-              key: props.key,
-              path: nextSupportsPaths ? props.path : undefined,
-              minLevel: nextSettings.level,
-              forwarded: true,
-            });
-
-            if (entry) {
-              if (!nextSupportsPaths) {
-                // setting main value
-                await levelApi.set({
-                  key: props.key,
-                  value: entry,
-                });
-                entry = { value: getDeep(entry.value, props.path) };
+              if (isNextValueDeep) {
+                currentLayer.api.set({ key, path, value: nextGetResult });
+                return nextGetResult;
               } else {
-                // setting nested value
-                await levelApi.set({
-                  key: props.key,
-                  path: props.path,
-                  value: entry,
-                });
+                if (!path?.length) {
+                  currentLayer.api.set({ key, value: nextGetResult });
+                  return nextGetResult;
+                } else if (currentLayer.api.supportsPaths) {
+                  const val = { value: getDeep(nextGetResult.value, path) };
+                  currentLayer.api.set({ key, path, value: val });
+                  return val;
+                }
               }
             }
-          } else {
-            entry = await api?.get({
-              key: props.key,
-              minLevel: nextSettings.level,
-              forwarded: true,
-            });
-
-            // Settings lower level value so next time there'll be no need to access higher level
-            if (entry) await levelApi.set({ key: props.key, value: entry });
-          }
+          );
         }
-      }
 
-      if (!entry && props.key in mainProps.defaultData) {
-        entry = { value: mainProps.defaultData[props.key] };
-        persistence.default.set({ key: props.key, value: entry });
-      }
+        if (path?.length && !isExpectedCurrentValueDeep) {
+          return { value: getDeep(getResult.value, path) };
+        }
 
-      if (!entry && props.minVersion === 'any') {
-        return getAwaiter(props.key).promise;
-      }
-
-      return entry;
+        return getResult;
+      });
     },
 
-    set: async ({ minLevel = 'default', ...props }) => {
-      const levelApi = persistence[minLevel];
-      if (!levelApi)
-        throw new Error(
-          `Persistence: set called with unknown minLevel "${minLevel}"`
-        );
+    set: ({ startLayerId, key, path, value }) => {
+      const startLayerIndex = startLayerId
+        ? layers.findIndex((l) => l.id === startLayerId)
+        : 0;
 
-      const nextSettings = props.next || levelApi.next;
+      const currentLayer = layers[startLayerIndex];
+      const nextLayer = layers[startLayerIndex + 1];
 
-      if (levelApi.keys && !levelApi.keys.includes(props.key)) {
-        if (!nextSettings?.level) return;
+      const handleCurrentSet = (setRes?: boolean) => {
+        if (!nextLayer) return setRes!;
 
         return api.set({
-          minLevel: nextSettings?.level,
-          key: props.key,
-          value: props.value,
-        });
-      }
-
-      if (props.path?.length && !levelApi.supportsPaths) {
-        const currentValue = await levelApi.get({
-          key: props.key,
-        });
-        /////////////////////// RETURNING ////////////////////
-        if (!currentValue?.value) {
-          return;
-        }
-        /////////////////////// RETURNING ////////////////////
-        if (!setDeep(currentValue?.value, props.path, props.value)) {
-          return;
-        }
-        await levelApi.set({
-          key: props.key,
-          value: currentValue,
-        });
-      } else {
-        await levelApi.set({
-          ...props,
-          value: { value: props.value },
-        });
-      }
-
-      if (minLevel === 'default') {
-        const awaitResolve = awaits[props.key]?.resolve;
-        delete awaits[props.key];
-        awaitResolve?.({ value: props.value });
-      }
-
-      if (nextSettings && !nextSettings.exclude?.includes(props.key)) {
-        await api.upgrade({
-          key: props.key,
-          path: props.path,
-          value: props.value,
-          settings: nextSettings,
-        });
-      }
-
-      return;
-    },
-
-    delete: async ({ minLevel = 'default', ...props }) => {
-      const levelApi = persistence[minLevel];
-      if (!levelApi)
-        throw new Error(
-          `Persistence: delete called with unknown minLevel "${minLevel}"`
-        );
-
-      await levelApi.delete(props);
-
-      const nextSettings = props.next || levelApi.next;
-
-      if (nextSettings && !nextSettings.exclude?.includes(props.key)) {
-        await api.delete({
-          key: props.key,
-          minLevel: nextSettings.level,
-        });
-      }
-
-      return;
-    },
-
-    clear: async (props) => {
-      const minLevel = props?.minLevel || 'default';
-      const level = persistence[minLevel];
-      if (!level)
-        throw new Error(
-          `Persistence: clear called with unknown minLevel "${minLevel}"`
-        );
-
-      await level.clear();
-
-      const nextLevel = props?.next?.level || level.next?.level;
-
-      if (nextLevel) {
-        await api.clear({ minLevel: nextLevel });
-      }
-
-      return;
-    },
-
-    upgrade: ({ key, path, value, settings }: PersistenceStorageNextProps) => {
-      const { level, bufferMs } = settings;
-
-      if (!persistence[level])
-        throw new Error(
-          `Persistence: Tried to upgrade "${key}" to unknown level "${level}"`
-        );
-
-      let result: void | boolean | Promise<void | boolean>;
-
-      const up = () => {
-        const setRes = api.set({
+          startLayerId: nextLayer.id,
           key,
           path,
           value,
-          minLevel: level,
         });
-        return setRes;
       };
 
-      if (bufferMs !== undefined) {
-        result = new Promise((resolve) => {
-          const throttleKey = key + '>' + level;
-          clearTimeout(throttles[throttleKey]);
-          throttles[throttleKey] = setTimeout(() => {
-            resolve(!!up());
-          }, bufferMs);
-        });
-      } else {
-        result = up();
+      if (path?.length && !currentLayer.api.supportsPaths) {
+        const handleCurrentGetValue = (v?: StorageEntry) => {
+          if (!v) return false;
+
+          setDeep(v.value, path, value); // TODO: take care of mutability 🙈
+          currentLayer.api.set({ key, value: v });
+
+          if (!nextLayer) return true;
+
+          return api.set({
+            startLayerId: nextLayer.id,
+            key,
+            path,
+            value,
+          });
+        };
+        const currentGetValue = currentLayer.api.get({ key });
+        return maybePromise(currentGetValue, handleCurrentGetValue);
       }
 
-      return result;
+      const currentSetRes = currentLayer.api.set({
+        key,
+        path,
+        value: { value },
+      });
+
+      return maybePromise(currentSetRes, handleCurrentSet);
     },
 
-    addLevel: ({ id, level, from, bufferMs }) => {
-      persistence[id] = level;
-      if (!from) return;
+    // TODO: support paths
+    delete: ({ startLayerId, key, path }) => {
+      const startLayerIndex = startLayerId
+        ? layers.findIndex((l) => l.id === startLayerId)
+        : 0;
 
-      const fromLevel = persistence[from];
-      if (fromLevel) {
-        const fromLevelNext = fromLevel.next;
-        fromLevel.next = { level: id, bufferMs };
-        level.next = fromLevelNext;
+      const currentLayer = layers[startLayerIndex];
+      const nextLayer = layers[startLayerIndex + 1];
+
+      if (path?.length && !currentLayer.api.supportsPaths) {
+        const currentValue = api.get({ startLayerId: currentLayer.id, key });
+        return maybePromise(currentValue, (v) => {
+          if (v === undefined) return false;
+
+          const cv = getDeep(v.value, path.slice(0, -1));
+          if (!cv) return false;
+          if (Array.isArray(cv)) {
+            const index = path.slice(-1)[0];
+            // TODO: support numbers for keys
+            if (!Number.isInteger(Number(index))) {
+              return false;
+            }
+            cv.splice(Number(index), 1);
+          } else if (typeof cv !== 'object') {
+            delete cv[path.slice(-1)[0]];
+          } else {
+            return false;
+          }
+
+          return maybePromise(
+            currentLayer.api.set({ key, value: v }),
+            //
+            (res) => {
+              if (!res || !nextLayer) return false;
+              return api.delete({ startLayerId: nextLayer.id, key, path });
+            }
+          );
+        });
       }
+
+      const currentRes = currentLayer.api.delete({ key, path });
+      return maybePromise(currentRes, (v) => {
+        if (v === false) return false;
+        return api.delete({ startLayerId: nextLayer.id, key, path });
+      });
+    },
+
+    clear: ({ startLayerId }) => {
+      const startLayerIndex = startLayerId
+        ? layers.findIndex((l) => l.id === startLayerId)
+        : 0;
+
+      const currentLayer = layers[startLayerIndex];
+      const nextLayer = layers[startLayerIndex + 1];
+
+      const currentRes = currentLayer.api.clear();
+      return maybePromise(currentRes, (v) => {
+        if (v === false) return false;
+        return api.clear({ startLayerId: nextLayer.id });
+      });
+    },
+
+    upgrade: ({ key, path, from, to }) => {
+      // TODO: implement
+      console.warn('"upgrade" method is not implemented yet');
+      return false;
+    },
+
+    addLayer: ({ id, layer, after }) => {
+      // TODO: implement
+      console.warn('"addLayer" method is not implemented yet');
     },
   };
 
@@ -317,9 +277,9 @@ export const createPersistenceSupplier = (props: CreatePersistenceProps) => {
   return () => api;
 };
 
-export * from './levels/runtimeLevel';
-export * from './levels/webStorageLevel';
-export * from './levels/remoteStorageLevel';
-export * from './levels/fileSystemLevel';
-export * from './levels/redisLevel';
+export * from './layers/runtimeLayer';
+export * from './layers/webStorageLayer';
+export * from './layers/remoteStorageLayer';
+export * from './layers/fileSystemLayer';
+export * from './layers/redisLayer';
 export * from './types';

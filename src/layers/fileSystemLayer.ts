@@ -1,6 +1,6 @@
-import { PersistenceLevel, NextSettings } from '../index';
+import { PersistenceLayerApi } from '../index';
 
-type FileSystemLevelProps = {
+type FileSystemLayerProps = {
   fs: {
     readFileSync: (path: string) => Buffer;
     writeFileSync: (
@@ -14,15 +14,13 @@ type FileSystemLevelProps = {
   };
   folderPath?: string;
   prefix?: string;
-  next?: NextSettings;
 };
 
-export const createFileSystemLevel = ({
+export const createFileSystemLayer = ({
   fs,
   prefix = '',
   folderPath = './',
-  next,
-}: FileSystemLevelProps): PersistenceLevel => ({
+}: FileSystemLayerProps): PersistenceLayerApi => ({
   get: async ({ key }) => {
     try {
       const strEntry = fs.readFileSync(folderPath + prefix + key).toString();
@@ -36,33 +34,36 @@ export const createFileSystemLevel = ({
   },
   set: ({ key, value }) => {
     try {
-      return fs.writeFileSync(
+      fs.writeFileSync(
         folderPath + prefix + key,
         JSON.stringify(value, null, 2),
         {
           flag: 'w',
         }
       );
+      return true;
     } catch (e) {
       console.warn(
         `fsLevel: Setting "${key}" failed with:\n `,
         e?.['message'] || e
       );
-      return;
     }
+    return false;
   },
   clear: () => {
     console.warn('fsLevel.clear: Not implemented yet...');
+    return false;
   },
   delete: ({ key }) => {
     try {
-      return fs.unlinkSync(folderPath + prefix + key);
+      fs.unlinkSync(folderPath + prefix + key);
+      return true;
     } catch (e) {
       console.warn(
         `fsLevel: Deleting "${key}" failed with:\n `,
         e?.['message'] || e
       );
     }
+    return false;
   },
-  next: next,
 });
